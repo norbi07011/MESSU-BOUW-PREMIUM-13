@@ -23,8 +23,13 @@ import {
   MapPin,
   User,
   Clock,
-  CurrencyEur
+  CurrencyEur,
+  CaretLeft,
+  CaretRight
 } from '@phosphor-icons/react';
+import { PezetWeekbriefTemplate } from '@/components/TimeTracking/Weekbrief/PezetWeekbriefTemplate';
+import { PEZET_EMPLOYER, PEZET_WEEKBRIEF_TEMPLATE } from '@/components/TimeTracking/Weekbrief/defaultTemplates';
+import type { WeekbriefInstance } from '@/types/weekbrief';
 
 // ============================================
 // TYPY
@@ -132,6 +137,7 @@ export function Timesheets() {
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [currentSheet, setCurrentSheet] = useState<Timesheet | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<'messu' | 'pezet'>('messu');
   
   const printRef = useRef<HTMLDivElement>(null);
   
@@ -226,6 +232,51 @@ export function Timesheets() {
     localStorage.setItem('timesheets', JSON.stringify([...timesheets, currentSheet]));
     
     alert('✅ Karta pracy zapisana!');
+  };
+
+  // Konwersja do formatu Weekbrief
+  const convertToWeekbrief = (): WeekbriefInstance => {
+    if (!currentSheet) throw new Error('No timesheet');
+    
+    return {
+      id: currentSheet.id,
+      employerId: PEZET_EMPLOYER.id,
+      employer: PEZET_EMPLOYER,
+      templateId: PEZET_WEEKBRIEF_TEMPLATE.id,
+      employeeName: currentSheet.employeeName,
+      weekNumber: getWeekNumber(new Date(currentSheet.weekStartDate)),
+      year: new Date(currentSheet.weekStartDate).getFullYear(),
+      dateFrom: new Date(currentSheet.weekStartDate),
+      dateTo: new Date(currentSheet.weekEndDate),
+      weekStartDate: formatDatePL(currentSheet.weekStartDate),
+      entries: currentSheet.days.map((day, index) => ({
+        werknr: (index + 1).toString(),
+        object: currentSheet.projectName,
+        opdrachtgever: currentSheet.projectClient,
+        ma: index === 1 ? day.workedHours.toString() : '',
+        di: index === 2 ? day.workedHours.toString() : '',
+        wo: index === 3 ? day.workedHours.toString() : '',
+        do: index === 4 ? day.workedHours.toString() : '',
+        vr: index === 5 ? day.workedHours.toString() : '',
+        za: index === 6 ? day.workedHours.toString() : '',
+        totaal: day.workedHours.toString()
+      })),
+      status: 'draft',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  };
+
+  const getWeekNumber = (date: Date): number => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  };
+
+  const switchTemplate = (direction: 'prev' | 'next') => {
+    setSelectedTemplate(selectedTemplate === 'messu' ? 'pezet' : 'messu');
   };
 
   // ============================================
@@ -583,20 +634,41 @@ export function Timesheets() {
       {/* Modal podglądu wydruku */}
       {showPreview && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white/95 dark:bg-white/5 backdrop-blur-md rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-blue-200 dark:border-blue-500/30 flex items-center justify-between sticky top-0 bg-white/95 dark:bg-white/5">
-              <h3 className="text-xl font-bold text-black dark:text-white">Podgląd Wydruku</h3>
-              <div className="flex gap-3">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-blue-200 flex items-center justify-between sticky top-0 bg-white/95 z-10">
+              <h3 className="text-xl font-bold text-black">Podgląd Wydruku</h3>
+              <div className="flex gap-3 items-center">
+                {/* Przyciski przełączania szablonu */}
+                <div className="flex items-center gap-2 border-r border-blue-300 pr-4">
+                  <button
+                    onClick={() => switchTemplate('prev')}
+                    className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-all"
+                    title="Poprzedni szablon"
+                  >
+                    <CaretLeft size={20} weight="bold" />
+                  </button>
+                  <span className="text-sm font-medium text-black px-3">
+                    {selectedTemplate === 'messu' ? 'MESSU BOUW' : 'PEZET'}
+                  </span>
+                  <button
+                    onClick={() => switchTemplate('next')}
+                    className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-all"
+                    title="Następny szablon"
+                  >
+                    <CaretRight size={20} weight="bold" />
+                  </button>
+                </div>
+                
                 <button
                   onClick={handlePrint}
-                  className="px-4 py-2 bg-sky-500 dark:bg-blue-500 text-white rounded-lg hover:bg-sky-600 dark:hover:bg-blue-600 transition-all"
+                  className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition-all"
                 >
                   <Printer size={18} className="inline mr-2" />
                   Drukuj
                 </button>
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 bg-slate-200 dark:bg-black/70 text-black dark:text-white rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-all"
+                  className="px-4 py-2 bg-slate-200 text-black rounded-lg hover:bg-slate-300 transition-all"
                 >
                   Zamknij
                 </button>
@@ -605,7 +677,14 @@ export function Timesheets() {
             
             {/* Wersja do wydruku */}
             <div ref={printRef} className="p-8 bg-white">
-              <PrintableTimesheet timesheet={currentSheet} />
+              {selectedTemplate === 'messu' ? (
+                <PrintableTimesheet timesheet={currentSheet} />
+              ) : (
+                <PezetWeekbriefTemplate 
+                  instance={convertToWeekbrief()} 
+                  mode="readonly"
+                />
+              )}
             </div>
           </div>
         </div>
